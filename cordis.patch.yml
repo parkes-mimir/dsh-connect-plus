@@ -1,0 +1,12 @@
+# dsh-connect-plus —— WorkBuddy + Trae + Qoder 三合一（全量补丁版）
+#
+# 在原 dsh-workbuddy-trae-qoder-connect v0.3.2 基础上整合：
+#   · DSML 泄漏全量修复（3 provider：提取改用 raw 缓冲、裸标记清洗、[DONE] 守卫、content+reasoning 双通道）
+#   · tailfix（只在真 DSML 标签前缀时扣留，避免误伤正文里的 < 、反引号、代码块）
+#   · Qoder userinfo Bearer 签名修复（bootstrap 无 uid 时不走 COSY）
+#   · Qoder 502 network 错误分类（传输类错误不再误报 401 not_signed_in，触发自动重试）
+#   · Qoder SSE 心跳保活（上游首字节延迟时立即回 :sse-open / :ping，防客户端"无输出"取消）
+#   · pi-ai 崩溃加固（estimate.js block.*.length + text.js sections 类型守卫，跨平台自动生效）
+- insert:
+    - id: dsh-connect
+      name: dsh-connect-plus

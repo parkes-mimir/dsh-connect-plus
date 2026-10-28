@@ -1,0 +1,92 @@
+{
+  "name": "dsh-connect-plus",
+  "displayName": "Connect Plus（WorkBuddy + Trae + Qoder 三合一·全量补丁版）",
+  "description": "一个插件接入 WorkBuddy（含企业版，多账号注册表）/ Trae / Qoder CN 全部渠道模型。内置全量社区补丁：DSML 泄漏修复、tailfix 正文保留、Qoder 502 网络错误分类、userinfo Bearer 签名修复、SSE 心跳保活、pi-ai 崩溃加固。开箱即用，Windows / Linux / macOS 通用。",
+  "version": "0.3.3-plus.1",
+  "author": {
+    "name": "chengshenyangtai (upstream) + Little Code Sauce (patches bundled)",
+    "url": "https://github.com/chengshenyangtai/dsh-workbuddy-trae-qoder-connect"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chengshenyangtai/dsh-workbuddy-trae-qoder-connect.git"
+  },
+  "homepage": "https://github.com/chengshenyangtai/dsh-workbuddy-trae-qoder-connect#readme",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "model-provider",
+    "workbuddy",
+    "trae",
+    "trae-cn",
+    "qoder",
+    "qoder-cn",
+    "connect",
+    "aggregate"
+  ],
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-model-selection",
+        "@deepseek-ai/dsh-client-ui-settings-plugins",
+        "@deepseek-ai/dsh-client-locale"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-atomic-write": "^0.1.5-rc.1 || ^0.1.6-alpha.1 || ^0.1.7-alpha.1 || ^0.2.0-rc.2",
+    "@deepseek-ai/dsh-attachment": "^0.1.5-rc.1 || ^0.1.6-alpha.1 || ^0.1.7-alpha.1 || ^0.2.0-rc.2",
+    "@deepseek-ai/dsh-home-paths": "^0.1.5-rc.1 || ^0.1.6-alpha.1 || ^0.1.7-alpha.1 || ^0.2.0-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.5-rc.1 || ^0.1.6-alpha.1 || ^0.1.7-alpha.1 || ^0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.5-rc.1 || ^0.1.6-alpha.1 || ^0.1.7-alpha.1 || ^0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm-pi-ai": "^0.1.5-rc.1 || ^0.1.6-alpha.1 || ^0.1.7-alpha.1 || ^0.2.0-rc.2",
+    "@deepseek-ai/dsh-settings": "^0.1.5-rc.1 || ^0.1.6-alpha.1 || ^0.1.7-alpha.1 || ^0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.2",
+    "@earendil-works/pi-ai": "^0.85.1",
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": { "optional": true },
+    "@deepseek-ai/dsh-atomic-write": { "optional": true },
+    "@deepseek-ai/dsh-attachment": { "optional": true },
+    "@deepseek-ai/dsh-home-paths": { "optional": true },
+    "@deepseek-ai/dsh-host-webserver": { "optional": true },
+    "@deepseek-ai/dsh-llm": { "optional": true },
+    "@deepseek-ai/dsh-llm-pi-ai": { "optional": true },
+    "@deepseek-ai/dsh-settings": { "optional": true },
+    "@deepseek-ai/schemastery": { "optional": true },
+    "@earendil-works/pi-ai": { "optional": true },
+    "react": { "optional": true }
+  }
+}
