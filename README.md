@@ -253,9 +253,26 @@ grep -c "cleanReasoning" lib/providers/trae/index.js   # 应 > 0
 
 ---
 
+#### 11. Trae 报 `502 invalid character 'u' looking for beginning of value`
+
+**症状**：Trae 模型（尤其 DS 系列开高档位 xhigh）思考几分钟后突然报 502，message 为 `invalid character 'u' looking for beginning of value`。
+
+**根因**：pi-ai 发给 adapter 的 `tools` 是**扁平结构** `{name, description, parameters}`，但 `toTraeTools` 原先只认 OpenAI 嵌套格式 `{function: {name, parameters}}`（用 `t?.function` 取值），导致**所有工具被 skip**，请求发给 Trae 上游时不带 tools 定义。而对话历史里有 assistant 工具调用 + tool 结果，Trae 上游 Go 服务处理这种"有工具调用历史但无工具定义"的不一致状态时，内部 JSON 解析遇到 `undefined` 字面量，报 `invalid character 'u'`，返回 502。
+
+**判据**：
+```bash
+# 看发给 trae 的请求里 tools 是不是空的
+grep -o '"tools":\[' /tmp/dispatch-opts.jsonl | wc -l   # 应有值
+# 或在 dispatch-opts.jsonl 里看 options.tools 元素是否有 function 字段
+```
+
+**修复**：v0.3.3-plus.3 已修——`toTraeTools` / `toTraeToolCalls` 改为 `const fn = t?.function ?? t`，兼容扁平与嵌套两种格式。升级到 v0.3.3-plus.3 即可。
+
+---
+
 ### 五、WorkBuddy 专用类
 
-#### 11. WorkBuddy 报凭证无效 / 401
+#### 12. WorkBuddy 报凭证无效 / 401
 
 **症状**：WorkBuddy 渠道 401，但快照文件存在。
 
