@@ -2,16 +2,16 @@
   "name": "dsh-connect-plus",
   "displayName": "Connect Plus（WorkBuddy + Trae + Qoder 三合一·全量补丁版）",
   "description": "一个插件接入 WorkBuddy（含企业版，多账号注册表）/ Trae / Qoder CN 全部渠道模型。内置全量社区补丁：DSML 泄漏修复、tailfix 正文保留、Qoder 502 网络错误分类、userinfo Bearer 签名修复、SSE 心跳保活、pi-ai 崩溃加固。开箱即用，Windows / Linux / macOS 通用。",
-  "version": "0.3.3-plus.1",
+  "version": "0.3.3-plus.2",
   "author": {
     "name": "chengshenyangtai (upstream) + Little Code Sauce (patches bundled)",
-    "url": "https://github.com/chengshenyangtai/dsh-workbuddy-trae-qoder-connect"
+    "url": "https://github.com/chengshenyangtai"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chengshenyangtai/dsh-workbuddy-trae-qoder-connect.git"
+    "url": "git+https://github.com/parkes-mimir/dsh-connect-plus.git"
   },
-  "homepage": "https://github.com/chengshenyangtai/dsh-workbuddy-trae-qoder-connect#readme",
+  "homepage": "https://github.com/parkes-mimir/dsh-connect-plus#readme",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
