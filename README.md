@@ -272,7 +272,17 @@ grep -o '"tools":\[' /tmp/dispatch-opts.jsonl | wc -l   # 应有值
 
 ### 五、WorkBuddy 专用类
 
-#### 12. WorkBuddy 报凭证无效 / 401
+#### 12. WorkBuddy 国内版报 `11128 Illegal API invocation from an unapproved channel`
+
+**症状**：WorkBuddy 国内版发消息报 400，`code: 11128`，`msg: "Illegal API invocation from an unapproved channel"`，`displayTips` 提示 "This call failed channel verification, possibly because it was not sent from an official client"。
+
+**根因**：WorkBuddy 国内版已上线与国际版相同的 conversation id 校验。`chatHeaders` 原先只在国际版（`region === "global"`）加 `X-Conversation-*` 头，国内版故意不带（旧假设：只在国际版观察到）。国内网关现在也校验这四个头，缺了就拦。
+
+**修复**：v0.3.3-plus.4 已修——`chatHeaders` 无条件带 `X-Conversation-ID` / `X-Conversation-Request-ID` / `X-Conversation-Message-ID` / `X-Root-Request-ID`（每次请求用 `randomUUID()` 生成）。升级到 v0.3.3-plus.4 即可。
+
+---
+
+#### 13. WorkBuddy 报凭证无效 / 401
 
 **症状**：WorkBuddy 渠道 401，但快照文件存在。
 
