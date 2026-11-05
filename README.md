@@ -16,6 +16,8 @@
 | 4 | **Qoder 502 网络错误分类** | `providers/qoder/index.js` 错误处理 | 瞬时网络故障（undici `terminated`、连接重置、超时）被一律报成 401 `not_signed_in`，前端显示「API 密钥无效」—— 凭据其实有效。修复：传输类错误改报 502 `network`，DSH 重试策略自动重打 |
 | 5 | **Qoder SSE 心跳保活** | `providers/qoder/index.js` 流响应开头 | 上游首字节延迟时一个字节都不回，触发客户端「无输出」取消。修复：立即回 SSE 头 + `:sse-open` / 每 8s `:ping` 心跳 |
 | 6 | **pi-ai 崩溃加固** | `lib/index.js` `autoHardenPiAi()` + `scripts/harden-pi-ai.mjs` | pi-ai `estimate.js` 的 `block.name.length`（tool-addition/tool-removal 块只有 toolName）和 `text.js` 的 `parts.filter(part=>part.length)`（sections 值可为 undefined）→ 任何插件模型一发消息必崩（`PI_AI_ERROR`）。可写 FS 自动补丁；NixOS 等只读 FS 走 ESM loader hook |
+| 7 | **WorkBuddy 国内版 11128 通道校验修复** | `lib/wb400-guard.js`（fetch 层）+ `lib/index.js` 安装 | `copilot.tencent.com` 对 system/developer/assistant 文本做指纹校验（`@` 文件引用段、`DeepSeek￼Harness` 身份句、`coding agent powered by` 句式、Web GUI 段），命中即 `400 code 11128 Illegal API invocation from an unapproved channel`。修复：fetch 层语义等价改写这四处指纹，user/tool 原样透传，fail-open |
+| 8 | **Trae tools 扁平格式兼容** | `providers/trae/index.js` `toTraeTools` / `toTraeToolCalls` | pi-ai 发的 tools 是扁平 `{name,parameters}`，原代码只认 `{function:{...}}` → 工具全被丢弃 → 上游内部状态不一致返回 `502 invalid character 'u'`。修复：`const fn = t?.function ?? t` |
 
 ---
 
@@ -274,11 +276,33 @@ grep -o '"tools":\[' /tmp/dispatch-opts.jsonl | wc -l   # 应有值
 
 #### 12. WorkBuddy 国内版报 `11128 Illegal API invocation from an unapproved channel`
 
-**症状**：WorkBuddy 国内版发消息报 400，`code: 11128`，`msg: "Illegal API invocation from an unapproved channel"`，`displayTips` 提示 "This call failed channel verification, possibly because it was not sent from an official client"。
+**症状**：WorkBuddy 国内版发消息报 400，`code: 11128`，`msg: "Illegal API invocation from an unapproved channel"`，`displayTips` 提示 "This call failed channel verification, possibly because it was not sent from an official client"。换国际版正常，换账号/换模型/换机器都一样，第一步就挂。
 
-**根因**：WorkBuddy 国内版已上线与国际版相同的 conversation id 校验。`chatHeaders` 原先只在国际版（`region === "global"`）加 `X-Conversation-*` 头，国内版故意不带（旧假设：只在国际版观察到）。国内网关现在也校验这四个头，缺了就拦。
+**根因（社区 A/B 实测，不是请求头问题）**：`copilot.tencent.com` 会对 **system / developer / assistant 消息的文本内容**做指纹校验，命中即 11128。与请求头、工具数量、`max_tokens`、对话长度全部无关。四个触发源：
 
-**修复**：v0.3.3-plus.4 已修——`chatHeaders` 无条件带 `X-Conversation-ID` / `X-Conversation-Request-ID` / `X-Conversation-Message-ID` / `X-Root-Request-ID`（每次请求用 `randomUUID()` 生成）。升级到 v0.3.3-plus.4 即可。
+1. **文件引用段里的 `@`** —— `@deepseek-ai/dsh-file-reference` 注入的 `Tokens prefixed with @ are paths ...` 段，网关匹配「前段连续词组 + @ 字形」的组合
+2. **身份句** —— `You are an AI agent powered by DeepSeek￼Harness.`（中间是零宽空格 U+200B），**位于 system 开头**时触发；放句中/句尾/前面垫一行都不触发
+3. **coding agent 句式** —— `You are a coding agent powered by <模型名>.`，网关认的是 `coding agent powered by` 这个句式，换模型名救不了
+4. **Web GUI 段** —— `the DeepSeek￼Harness Web GUI` / `Current DeepSeek￼Harness Web GUI URL`，通常落在 system 尾部
+
+前两个是本机实测，后两个来自他人机器实测 + 防御性覆盖。**国际网关 `www.workbuddy.ai` 不做这个校验。**
+
+**修复**：v0.3.3-plus.5 内置 `lib/wb400-guard.js`——在 `globalThis.fetch` 层只对发往 `copilot.tencent.com` 的请求，对 system/developer/assistant 文本做**语义等价改写**：
+
+| # | 改什么 | 改成什么 |
+|---|---|---|
+| 1 | 文件引用段里的 `@` | `(at)` |
+| 2 | `You are an AI agent powered by DeepSeek￼Harness.` | `... DeepSeek-Harness.` |
+| 3 | `You are a coding agent powered by ` | `You are a coding agent running on ` |
+| 4 | `the DeepSeek￼Harness Web GUI` / `Current ... Web GUI URL` | `this Web GUI` / `Current Web GUI URL` |
+
+加兜底：残留的 `DeepSeek`+不可见分隔+`Harness` 统一换成 `DeepSeek-Harness`。**user 与 tool 消息一字不动**（邮箱 `a@b.com`、`@某人`、装饰器都保留），其他 API 原样透传，改写链路任何异常 fail-open 回原始请求，并剔除陈旧的 `Content-Length`。
+
+**为什么必须在 fetch 层**：`llm/stream` 的 `GenerateOptions` 是深冻结的，改不了；`system-prompt/assemble` 会改掉所有 provider 的提示词。fetch 是唯一精准且能覆盖插件内部 11128 重试阶梯的位置。
+
+**验证方式**：升级后发一条 WorkBuddy 国内版消息，能正常回复即通过。宿主日志里应出现 `dsh-connect-plus: WorkBuddy 国内版 11128 fetch guard 已安装`。
+
+**（历史）v0.3.3-plus.4 的 `X-Conversation-*` 猜测是错的**——那套头是国际版 11128 的原因，国内版不吃这套，升级到 plus.4 仍会报错。plus.5 才是真修复。
 
 ---
 
@@ -362,5 +386,5 @@ dsh-connect-plus/
 ## 📝 版本
 
 - 上游：`dsh-workbuddy-trae-qoder-connect@0.3.2`
-- 本版本：`dsh-connect-plus@0.3.3-plus.1`
-- 补丁来源：社区 issue #9（pi-ai）+ 实战 DSML/tailfix/userinfo/502/SSE 修复
+- 本版本：`dsh-connect-plus@0.3.3-plus.5`
+- 补丁来源：社区 issue #9（pi-ai）、[curo22/dsh-wb400-guard](https://github.com/curo22/dsh-wb400-guard)（WorkBuddy 国内版 11128 的 A/B 实测与改写规则）、实战 DSML/tailfix/userinfo/502/SSE/tools 格式修复
