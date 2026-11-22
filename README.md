@@ -189,7 +189,7 @@ curl -s -H "Authorization: Bearer $(cat $DSH_HOME/qoder/pat)" https://qoder.byte
 → **判据**：新开一个空会话也报错（与对话历史无关）。
 → **修复**：不要把大工具集挂全局。按模式隔离——只在对应 preset 的 `config.plugins` 里挂载。验算工具数：
 ```bash
-tail -c 3000000 /tmp/req-dump-qoder.log | grep -oE '"type":"function","function":\{"name":"[^"]*"' | sed 's/.*"name":"//;s/"$//' | sort -u | wc -l
+DSH_DUMP=2 tail -c 3000000 /tmp/dsh-dump/req-dump-qoder.log | grep -oE '"type":"function","function":\{"name":"[^"]*"' | sed 's/.*"name":"//;s/"$//' | sort -u | wc -l
 ```
 正常应 < 200。
 
@@ -264,7 +264,7 @@ grep -c "cleanReasoning" lib/providers/trae/index.js   # 应 > 0
 **判据**：
 ```bash
 # 看发给 trae 的请求里 tools 是不是空的
-grep -o '"tools":\[' /tmp/dispatch-opts.jsonl | wc -l   # 应有值
+DSH_DUMP=1 tail -3 /tmp/dsh-dump/dispatch-opts.jsonl | grep -o '"toolCount":[0-9]*'   # 应有值
 # 或在 dispatch-opts.jsonl 里看 options.tools 元素是否有 function 字段
 ```
 
@@ -325,14 +325,19 @@ head -c 300 $WORKBUDDY1_AUTH_FILE
 
 ### 六、通用诊断命令
 
+> **⚠️ 自 v0.3.4 起转储默认关闭。** 插件不再无条件写 `/tmp/*.log`，
+> 需要排查时显式开启（见下方「六点五、转储开关」）。目录也从 `/tmp` 改到
+> `os.tmpdir()/dsh-dump/`（Linux 仍是 `/tmp/dsh-dump/`，Windows 是 `%TEMP%\dsh-dump\`）。
+
 ```bash
 # 1. 看插件是否加载
 journalctl --user -u dsh-web -n 300 | grep -iE "dsh-connect|dsh-workbuddy|dsh-trae|dsh-qoder"
 
-# 2. 看请求/响应原始帧（排查 DSML / 流式问题）
-tail -f /tmp/shim-frames.log          # workbuddy/trae shim 出口
-tail -f /tmp/qoder-err.log            # qoder 错误详情
-tail -f /tmp/pi-ai-harden.log         # pi-ai 加固日志
+# 2. 看请求/响应原始帧（排查 DSML / 流式问题）—— 需先 DSH_DUMP=2
+# Linux: /tmp/dsh-dump    Windows: %TEMP%\dsh-dump
+tail -f /tmp/dsh-dump/shim-frames.log     # workbuddy/trae shim 出口（verbose）
+tail -f /tmp/dsh-dump/qoder-err.log       # qoder 错误详情（始终写入，体积小）
+tail -f /tmp/pi-ai-harden.log             # pi-ai 加固日志（loader hook 自己的，不受开关影响）
 
 # 3. 看 pi-ai 是否被加固
 PI_AI=$(node -e "console.log(require('path').dirname(require.resolve('@earendil-works/pi-ai/package.json')))")
@@ -388,3 +393,41 @@ dsh-connect-plus/
 - 上游：`dsh-workbuddy-trae-qoder-connect@0.3.2`
 - 本版本：`dsh-connect-plus@0.3.3-plus.5`
 - 补丁来源：社区 issue #9（pi-ai）、[curo22/dsh-wb400-guard](https://github.com/curo22/dsh-wb400-guard)（WorkBuddy 国内版 11128 的 A/B 实测与改写规则）、实战 DSML/tailfix/userinfo/502/SSE/tools 格式修复
+
+### 六点五、转储开关（v0.3.4 新增）
+
+插件历史上会把请求/响应无条件写到 `/tmp/*.log`，**无大小上限**，导致：
+
+- Linux：单日可涨到数十 GB（`/tmp` 是 tmpfs，重启才清）
+- Windows：`appendFileSync('/tmp/x')` 被解析成 `<当前盘>:\tmp\x`，**两天 26 GB**（issue #1）
+- 若从非系统盘启动，`D:\tmp\` 可能不存在 → 每次写都抛异常被吞 → **静默无日志**
+
+**现已改为默认关闭 + 统一入口 + 轮转。** 环境变量：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `DSH_DUMP` | `0` | `0` 全关 / `1` **只记摘要**（推荐）/ `2` 全量转储（仅 debug） |
+| `DSH_DUMP_DIR` | `os.tmpdir()/dsh-dump` | 覆盖输出目录 |
+| `DSH_DUMP_MAX_MB` | `200` | 单文件轮转阈值，超了转成 `.1` |
+| `DSH_DUMP_TOTAL_MB` | `500` | 单进程写入上限，超了停写并 `console.warn` |
+
+```bash
+# 临时开摘要（定位"发了什么、多大、几个工具"足够）
+DSH_DUMP=1 systemctl --user restart dsh-web
+
+# 要看完整 messages 才用 2（注意体积：单条可达 1-2 MB）
+DSH_DUMP=2 systemctl --user restart dsh-web
+
+# 关回去（默认状态，不写任何文件）
+systemctl --user restart dsh-web
+```
+
+**摘要模式记录什么：**
+
+```json
+{"model":"...","provider":"...","msgCount":42,"msgBytes":552960,"toolCount":173,"approxTokens":157988}
+```
+
+**令牌不再落盘内容**——`shim-trace.log` 里只写 `<bearer>` / `<basic>` / `<present>` / `<none>`，
+不再是 `Bearer sk-xxx...` 的前 20 字符。
+
